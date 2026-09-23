@@ -12,7 +12,9 @@ const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 const dotenv = require('dotenv');
 
-dotenv.config();
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 const app = express();
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -62,7 +64,9 @@ async function initializeRuntimeDatabase() {
 
   db = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL.includes('supabase') || process.env.DATABASE_URL.includes('render') || process.env.DATABASE_URL.includes('neon') ? { rejectUnauthorized: false } : false,
+    ssl: process.env.DATABASE_URL.includes('supabase') || process.env.DATABASE_URL.includes('render') || process.env.DATABASE_URL.includes('neon')
+      ? { rejectUnauthorized: true }
+      : false,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000
