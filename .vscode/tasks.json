@@ -1,0 +1,53 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run API tests",
+			"type": "shell",
+			"command": "node --test tests/*.test.js --test-reporter=spec",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify Node API tests",
+			"type": "shell",
+			"command": "\"C:\\Program Files\\nodejs\\node.exe\" --test tests/*.test.js --test-reporter=spec",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify Node API tests",
+			"type": "shell",
+			"command": "& \"C:\\Program Files\\nodejs\\node.exe\" --test tests/*.test.js --test-reporter=spec",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify Node API tests",
+			"type": "shell",
+			"command": "cmd /c \"\"C:\\Program Files\\nodejs\\node.exe\" --test tests/*.test.js --test-reporter=spec\"",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify Node API tests",
+			"type": "shell",
+			"command": "C:/PROGRA~1/nodejs/node.exe --test tests/*.test.js --test-reporter=spec",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Verify Node API tests",
+			"type": "shell",
+			"command": "$env:Path = \"C:\\Program Files\\nodejs;$env:Path\"; node --test tests/*.test.js --test-reporter=spec",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}
