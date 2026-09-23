@@ -62,11 +62,11 @@ async function initializeRuntimeDatabase() {
     throw new Error('DATABASE_URL is required. Set it in the environment before starting the application.');
   }
 
+  const isManagedDatabase = /supabase|render|neon|pooler/i.test(process.env.DATABASE_URL);
+
   db = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL.includes('supabase') || process.env.DATABASE_URL.includes('render') || process.env.DATABASE_URL.includes('neon')
-      ? { rejectUnauthorized: true }
-      : false,
+    ssl: isManagedDatabase ? { rejectUnauthorized: false } : false,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000
@@ -156,7 +156,7 @@ async function createAuditLog(userId, action, resourceType, resourceId, details,
 async function createNotification(userId, title, message, type, taskId = null) {
   await dbRun(`
     INSERT INTO notifications (id, user_id, title, message, type, related_task_id, is_read, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+    VALUES (?, ?, ?, ?, ?, ?, FALSE, ?)
   `, [uuidv4(), userId, title, message, type, taskId, nowIso()]);
 }
 
@@ -229,15 +229,6 @@ async function initializeDatabase() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE IF NOT EXISTS departments (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      name VARCHAR(120) NOT NULL UNIQUE,
-      description TEXT,
-      manager_id UUID,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT fk_departments_manager FOREIGN KEY (manager_id) REFERENCES users(id)
-    );
-
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name VARCHAR(160) NOT NULL,
@@ -251,10 +242,29 @@ async function initializeDatabase() {
       joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       last_login TIMESTAMPTZ,
       is_verified BOOLEAN NOT NULL DEFAULT TRUE,
-      CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id),
-      CONSTRAINT fk_users_department FOREIGN KEY (department_id) REFERENCES departments(id),
-      CONSTRAINT fk_users_manager FOREIGN KEY (manager_id) REFERENCES users(id)
+      CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id)
     );
+
+    CREATE TABLE IF NOT EXISTS departments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(120) NOT NULL UNIQUE,
+      description TEXT,
+      manager_id UUID,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_departments_manager') THEN
+        ALTER TABLE departments ADD CONSTRAINT fk_departments_manager FOREIGN KEY (manager_id) REFERENCES users(id);
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_department') THEN
+        ALTER TABLE users ADD CONSTRAINT fk_users_department FOREIGN KEY (department_id) REFERENCES departments(id);
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_manager') THEN
+        ALTER TABLE users ADD CONSTRAINT fk_users_manager FOREIGN KEY (manager_id) REFERENCES users(id);
+      END IF;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS teams (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -746,16 +756,20 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
   const user = req.user;
   let query = `
     SELECT t.*, d.name as department_name, u.name as created_by_name,
-    GROUP_CONCAT(ta.user_id) AS assignee_ids,
-    GROUP_CONCAT(ta2.user_name) AS assignee_names
+      (
+        SELECT STRING_AGG(ta.user_id::text, ',')
+        FROM task_assignments ta
+        WHERE ta.task_id = t.id
+      ) AS assignee_ids,
+      (
+        SELECT STRING_AGG(u.name, ',')
+        FROM task_assignments ta
+        LEFT JOIN users u ON u.id = ta.user_id
+        WHERE ta.task_id = t.id
+      ) AS assignee_names
     FROM tasks t
     LEFT JOIN departments d ON d.id = t.department_id
     LEFT JOIN users u ON u.id = t.created_by
-    LEFT JOIN task_assignments ta ON ta.task_id = t.id
-    LEFT JOIN (
-      SELECT ta.task_id, u.name as user_name FROM task_assignments ta
-      LEFT JOIN users u ON u.id = ta.user_id
-    ) ta2 ON ta2.task_id = t.id
     WHERE 1 = 1
   `;
 
@@ -769,7 +783,7 @@ app.get('/api/tasks', requireAuth, async (req, res) => {
     params.push(user.id);
   }
 
-  query += ' GROUP BY t.id ORDER BY t.updated_at DESC';
+  query += ' ORDER BY t.updated_at DESC';
 
   const rows = await dbQuery(query, params);
   res.json(rows.map(task => ({
@@ -986,7 +1000,7 @@ app.get('/api/notifications', requireAuth, async (req, res) => {
 });
 
 app.patch('/api/notifications/:id/read', requireAuth, async (req, res) => {
-  await dbRun('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+  await dbRun('UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
   res.json({ message: 'Notification marked as read.' });
 });
 

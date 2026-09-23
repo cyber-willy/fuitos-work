@@ -17,14 +17,6 @@ CREATE TABLE IF NOT EXISTS permissions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS departments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name VARCHAR(120) NOT NULL UNIQUE,
-  description TEXT,
-  manager_id UUID,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name VARCHAR(160) NOT NULL,
@@ -38,10 +30,29 @@ CREATE TABLE IF NOT EXISTS users (
   joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_login TIMESTAMPTZ,
   is_verified BOOLEAN NOT NULL DEFAULT TRUE,
-  CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id),
-  CONSTRAINT fk_users_department FOREIGN KEY (department_id) REFERENCES departments(id),
-  CONSTRAINT fk_users_manager FOREIGN KEY (manager_id) REFERENCES users(id)
+  CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id)
 );
+
+CREATE TABLE IF NOT EXISTS departments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(120) NOT NULL UNIQUE,
+  description TEXT,
+  manager_id UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_departments_manager') THEN
+    ALTER TABLE departments ADD CONSTRAINT fk_departments_manager FOREIGN KEY (manager_id) REFERENCES users(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_department') THEN
+    ALTER TABLE users ADD CONSTRAINT fk_users_department FOREIGN KEY (department_id) REFERENCES departments(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_manager') THEN
+    ALTER TABLE users ADD CONSTRAINT fk_users_manager FOREIGN KEY (manager_id) REFERENCES users(id);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS teams (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

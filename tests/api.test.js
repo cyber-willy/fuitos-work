@@ -59,13 +59,20 @@ test('manager can create a task', async () => {
 
 test('employee task submission requires completion note', async () => {
   await app.locals.ready;
+  const tasks = await request(app)
+    .get('/api/tasks')
+    .set('Authorization', `Bearer ${token}`);
+
+  const taskId = tasks.body[0]?.id;
+  assert.ok(taskId, 'At least one task should exist for validation.');
+
   const login = await request(app)
     .post('/api/auth/login')
     .send({ email: 'liam@fuitos.com', password: 'Employee@123' });
 
   const employeeToken = login.body.token;
   const response = await request(app)
-    .post('/api/tasks/1/submit')
+    .post(`/api/tasks/${taskId}/submit`)
     .set('Authorization', `Bearer ${employeeToken}`)
     .send({});
 
